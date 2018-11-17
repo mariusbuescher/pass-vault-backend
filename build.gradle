@@ -8,6 +8,7 @@ version '1.0-SNAPSHOT'
 apply plugin: 'java'
 apply plugin: 'kotlin'
 apply plugin: 'application'
+apply plugin: 'jacoco'
 
 repositories {
     mavenCentral()
@@ -29,6 +30,13 @@ dependencies {
     compile "com.muquit.libsodiumjna:libsodium-jna:1.0.4"
     compile 'org.postgresql:postgresql:42.2.0'
     compile 'io.github.cdimascio:java-dotenv:3.1.3'
+
+    testImplementation "org.jetbrains.kotlin:kotlin-test:1.3.0"
+    testImplementation "org.spekframework.spek2:spek-dsl-jvm:2.0.0-rc.1"
+    testRuntimeOnly "org.spekframework.spek2:spek-runner-junit5:2.0.0-rc.1"
+
+    // spek requires kotlin-reflect, can be omitted if already in the classpath
+    testRuntimeOnly "org.jetbrains.kotlin:kotlin-reflect:1.3.0"
 }
 
 compileKotlin {
@@ -45,4 +53,10 @@ jar {
         )
     }
     from { configurations.compile.collect { it.isDirectory() ? it : zipTree(it) } }
+}
+
+test {
+    useJUnitPlatform {
+        includeEngines 'spek2'
+    }
 }
