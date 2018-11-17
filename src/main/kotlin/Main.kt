@@ -30,7 +30,7 @@ fun main(args: Array<String>) {
             .load()
 
     SodiumLibrary.setLibraryPath(dotenv.get("SODIUM_LIBRARY_PATH") ?: "/usr/lib/libsodium.so")
-    val v = SodiumLibrary.libsodiumVersionString()
+    SodiumLibrary.libsodiumVersionString()
 
     val connection = DriverManager.getConnection(dotenv.get("APP_DB_URL") ?: "jdbc:postgresql://localhost:5432/pass_vault?user=postgres")
 
@@ -42,10 +42,6 @@ fun main(args: Array<String>) {
             tokenTTL = dotenv.get("APP_AUTH_TOKEN_TTL")?.toInt() ?: 14,
             secret = secret
     )
-
-    fun Authentication.Configuration.jsonUser(name: String? = null, configure: JsonUserAuthenticationProvider.() -> Unit) {
-
-    }
 
     val server = embeddedServer(Netty, port = dotenv.get("APP_HTTP_PORT")?.toInt() ?: 8080) {
         install(ContentNegotiation) {
