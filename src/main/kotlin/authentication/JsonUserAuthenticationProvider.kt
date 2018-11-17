@@ -28,7 +28,7 @@ class JsonUserAuthenticationProvider(
                 "${secret}.$plaintextPassword".toByteArray()
         )
 
-        if (isValid) UserPrincipal(user!!.username) else null
+        if (isValid) UserPrincipal(user.username) else null
     }
 
     init {
