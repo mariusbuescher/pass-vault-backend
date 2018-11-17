@@ -13,7 +13,7 @@ be able to do it, as long as it supports running an application compiled to Java
 
 As mentioned above this software is compiled to Java Bytecode. It is implemented in Kotlin
 and uses PostgreSQL as a database backend. You only need a running database and gradle
-installed on your machine.
+at least in version 4.5 installed on your machine.
 
 ## Setup
 
