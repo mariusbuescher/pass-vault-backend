@@ -82,10 +82,11 @@ class PostgresUserRepository(
                     |INNER JOIN auth_token
                     |ON auth_token.user_id=auth_user.username
                     |WHERE auth_token.token=?
-                    |AND auth_token.valid_until >= 'now'
+                    |AND auth_token.valid_until >= ?
                 """.trimMargin()
         )
         dbUserSelectStmt.setString(1, token)
+        dbUserSelectStmt.setTimestamp(2, Timestamp(System.currentTimeMillis()))
 
         val dbUsers = dbUserSelectStmt.executeQuery()
 
