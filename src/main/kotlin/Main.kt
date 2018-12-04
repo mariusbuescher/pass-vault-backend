@@ -2,6 +2,8 @@ import authentication.JsonUserAuthenticationProvider
 import authentication.TokenUserAuthenticationProvider
 import authentication.UserPrincipal
 import com.muquit.libsodiumjna.SodiumLibrary
+import db.Token
+import db.Users
 import dto.TokenDto
 import dto.UserDto
 import dto.ValidationErrorExceptionDto
@@ -43,12 +45,14 @@ fun main(args: Array<String>) {
     Database.connect(dataSource)
 
     val userRepository = PostgresUserRepository(
+            dbUserTable = Users,
+            dbTokenTable = Token,
             tokenByteSize = dotenv.get("APP_AUTH_TOKEN_SIZE")?.toInt() ?: 256,
             tokenTTL = dotenv.get("APP_AUTH_TOKEN_TTL")?.toInt() ?: 14,
             secret = secret
     )
 
-    val server = embeddedServer(Netty, port = dotenv.get("APP_HTTP_PORT")?.toInt() ?: 8088) {
+    val server = embeddedServer(Netty, port = dotenv.get("APP_HTTP_PORT")?.toInt() ?: 8080) {
         install(ContentNegotiation) {
             jackson {  }
         }

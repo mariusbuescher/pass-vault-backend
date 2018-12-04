@@ -1,6 +1,8 @@
 package repository
 
 import com.muquit.libsodiumjna.SodiumLibrary
+import db.Token
+import db.Users
 import exception.TokenNotFoundException
 import exception.UserNotFoundException
 import io.github.cdimascio.dotenv.Dotenv
@@ -52,7 +54,7 @@ object PostgresUserRepositorySpek: Spek({
             Database.connect(dataSource)
             TransactionManager.manager.defaultIsolationLevel = Connection.TRANSACTION_SERIALIZABLE
 
-            PostgresUserRepository(7, 32, secret)
+            PostgresUserRepository(Users, Token, 7, 32, secret)
         }
 
         it("registers a user and gets it by its username") {

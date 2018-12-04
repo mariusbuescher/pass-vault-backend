@@ -20,6 +20,8 @@ import javax.sql.DataSource
 import kotlin.NoSuchElementException
 
 class PostgresUserRepository(
+        private val dbUserTable: DbUsers,
+        private val dbTokenTable: DbToken,
         private val tokenTTL: Int,
         private val tokenByteSize: Int,
         private val secret: String
@@ -28,7 +30,7 @@ class PostgresUserRepository(
         val hashedPassword = cryptoPwhashStr("${secret}.$plaintextPassword".toByteArray())
 
         transaction {
-            DbUsers.insert {
+            dbUserTable.insert {
                 it[this.username] = username
                 it[this.password] = hashedPassword.toByteArray(StandardCharsets.US_ASCII)
             }
@@ -37,15 +39,15 @@ class PostgresUserRepository(
 
     override fun getUserByUsername(username: String): User {
         return transaction {
-            val dbUsers = DbUsers.select {
-                DbUsers.username eq username
+            val dbUsers = dbUserTable.select {
+                dbUserTable.username eq username
             }
 
             try {
                 val user = dbUsers.first()
                 User(
-                        user.get(DbUsers.username),
-                        user.get(DbUsers.password).toString(StandardCharsets.US_ASCII)
+                        user.get(dbUserTable.username),
+                        user.get(dbUserTable.password).toString(StandardCharsets.US_ASCII)
                 )
             } catch(exception: NoSuchElementException) {
                 throw UserNotFoundException(username)
@@ -72,7 +74,7 @@ class PostgresUserRepository(
         )
 
         transaction {
-            DbToken.insert {
+            dbTokenTable.insert {
                 it[this.tokenValue] = token.token
                 it[this.issueDate] = DateTime(token.issuedAt)
                 it[this.validUntil] = DateTime(token.validUntil)
@@ -85,16 +87,16 @@ class PostgresUserRepository(
 
     override fun getUserForToken(token: String): User {
         return transaction {
-            val dbUsers = DbUsers.innerJoin(DbToken).select {
-                DbToken.tokenValue eq token and (DbToken.validUntil greaterEq DateTime.now())
+            val dbUsers = dbUserTable.innerJoin(dbTokenTable).select {
+                dbTokenTable.tokenValue eq token and (dbTokenTable.validUntil greaterEq DateTime.now())
             }
 
             try {
                 val user = dbUsers.first()
 
                 User(
-                        user.get(DbUsers.username),
-                        user.get(DbUsers.password).toString()
+                        user.get(dbUserTable.username),
+                        user.get(dbUserTable.password).toString()
                 );
             } catch (exception: NoSuchElementException) {
                 throw TokenNotFoundException(token)
