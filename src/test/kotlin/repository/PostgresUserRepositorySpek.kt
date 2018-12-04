@@ -5,14 +5,16 @@ import exception.TokenNotFoundException
 import exception.UserNotFoundException
 import io.github.cdimascio.dotenv.Dotenv
 import org.apache.commons.io.IOUtils
+import org.jetbrains.exposed.sql.Database
 import org.spekframework.spek2.Spek
 import org.spekframework.spek2.style.specification.describe
 import java.nio.charset.StandardCharsets
-import java.sql.Connection
-import java.sql.DriverManager
 import kotlin.test.assertEquals
-import kotlin.test.assertFails
 import kotlin.test.assertFailsWith
+import org.jetbrains.exposed.sql.transactions.TransactionManager
+import org.sqlite.SQLiteDataSource
+import org.sqlite.SQLiteException
+import java.sql.Connection
 
 object PostgresUserRepositorySpek: Spek({
     describe("PostgresUserRepository") {
@@ -26,23 +28,31 @@ object PostgresUserRepositorySpek: Spek({
 
         val secret = "1234IsNotReallyASecret"
 
-        val connection by memoized {
-            val con = DriverManager.getConnection("jdbc:sqlite:file::memory:?allowMultiQueries=true")
+        var counter = 0
+
+        val dataSource by memoized {
+            val dataSource = SQLiteDataSource()
+            dataSource.url = "jdbc:sqlite:file:test$counter?mode=memory&cache=shared"
+            val con = dataSource.connection
+
             val dbPrepStream = this.javaClass.classLoader
                     .getResourceAsStream("db/migration/sqlite/UpPostgresUserRepositorySpek.sql")
-
             val dbPrep = IOUtils.toString(dbPrepStream, StandardCharsets.UTF_8)
             val statements = dbPrep.split("\n\n")
             for (stmt in statements) {
                 con.createStatement().execute(stmt)
             }
 
-            con
-        }
-        val userRepository by memoized { PostgresUserRepository(connection, 7, 32, secret) }
+            counter++
 
-        afterEach {
-            connection.close()
+            dataSource
+        }
+
+        val userRepository by memoized {
+            Database.connect(dataSource)
+            TransactionManager.manager.defaultIsolationLevel = Connection.TRANSACTION_SERIALIZABLE
+
+            PostgresUserRepository(7, 32, secret)
         }
 
         it("registers a user and gets it by its username") {
@@ -55,7 +65,7 @@ object PostgresUserRepositorySpek: Spek({
 
         it("throws an error when no user is found") {
             assertFailsWith(UserNotFoundException::class, "User with username test not found") {
-                userRepository.getUserByUsername("1234")
+                userRepository.getUserByUsername("test")
             }
         }
 

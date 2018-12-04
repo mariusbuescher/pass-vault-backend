@@ -3,43 +3,53 @@ package repository
 import com.muquit.libsodiumjna.SodiumLibrary.cryptoPwhashStr
 import com.muquit.libsodiumjna.SodiumLibrary.randomBytes
 import com.muquit.libsodiumjna.SodiumUtils
+import db.Users as DbUsers
+import db.Token as DbToken
 import exception.TokenNotFoundException
 import exception.UserNotFoundException
 import model.Token
 import model.User
+import org.jetbrains.exposed.sql.and
+import org.jetbrains.exposed.sql.insert
+import org.jetbrains.exposed.sql.select
+import org.jetbrains.exposed.sql.transactions.transaction
+import org.joda.time.DateTime
 import java.nio.charset.StandardCharsets
-import java.sql.Connection
-import java.sql.Timestamp
 import java.util.*
+import javax.sql.DataSource
+import kotlin.NoSuchElementException
 
 class PostgresUserRepository(
-        private val dbConnection: Connection,
         private val tokenTTL: Int,
         private val tokenByteSize: Int,
         private val secret: String
 ): UserRepository {
     override fun registerUser(username: String, plaintextPassword: String) {
-        val insertStmt = dbConnection.prepareStatement(
-                "INSERT INTO auth_user (username, password) values (?, ?)"
-        )
-
-        insertStmt.setString(1, username)
         val hashedPassword = cryptoPwhashStr("${secret}.$plaintextPassword".toByteArray())
-        insertStmt.setBytes(2, hashedPassword.toByteArray(StandardCharsets.US_ASCII))
 
-        insertStmt.execute()
+        transaction {
+            DbUsers.insert {
+                it[this.username] = username
+                it[this.password] = hashedPassword.toByteArray(StandardCharsets.US_ASCII)
+            }
+        }
     }
 
     override fun getUserByUsername(username: String): User {
-        val dbUserStmt = dbConnection.prepareStatement("SELECT username, password FROM auth_user WHERE username=?")
-        dbUserStmt.setString(1, username)
+        return transaction {
+            val dbUsers = DbUsers.select {
+                DbUsers.username eq username
+            }
 
-        val dbUsers = dbUserStmt.executeQuery()
-
-        if (dbUsers.next()) {
-            return User(dbUsers.getString("username"), dbUsers.getBytes("password").toString(StandardCharsets.US_ASCII))
-        } else {
-            throw UserNotFoundException(username)
+            try {
+                val user = dbUsers.first()
+                User(
+                        user.get(DbUsers.username),
+                        user.get(DbUsers.password).toString(StandardCharsets.US_ASCII)
+                )
+            } catch(exception: NoSuchElementException) {
+                throw UserNotFoundException(username)
+            }
         }
     }
 
@@ -61,39 +71,34 @@ class PostgresUserRepository(
                 validUntil = validUntil
         )
 
-        val tokenInsertStmt = dbConnection.prepareStatement(
-                "INSERT INTO auth_token (token, issue_date, valid_until, user_id) VALUES (?, ?, ?, ?)"
-        )
-
-        tokenInsertStmt.setString(1, token.token)
-        tokenInsertStmt.setTimestamp(2, Timestamp(token.issuedAt.time))
-        tokenInsertStmt.setTimestamp(3, Timestamp(token.validUntil.time))
-        tokenInsertStmt.setString(4, token.username)
-
-        tokenInsertStmt.execute()
+        transaction {
+            DbToken.insert {
+                it[this.tokenValue] = token.token
+                it[this.issueDate] = DateTime(token.issuedAt)
+                it[this.validUntil] = DateTime(token.validUntil)
+                it[this.user] = user.username
+            }
+        }
 
         return token
     }
 
     override fun getUserForToken(token: String): User {
-        val dbUserSelectStmt = dbConnection.prepareStatement(
-                """SELECT auth_user.username as username, auth_user.password as password
-                    |FROM auth_user
-                    |INNER JOIN auth_token
-                    |ON auth_token.user_id=auth_user.username
-                    |WHERE auth_token.token=?
-                    |AND auth_token.valid_until >= ?
-                """.trimMargin()
-        )
-        dbUserSelectStmt.setString(1, token)
-        dbUserSelectStmt.setTimestamp(2, Timestamp(System.currentTimeMillis()))
+        return transaction {
+            val dbUsers = DbUsers.innerJoin(DbToken).select {
+                DbToken.tokenValue eq token and (DbToken.validUntil greaterEq DateTime.now())
+            }
 
-        val dbUsers = dbUserSelectStmt.executeQuery()
+            try {
+                val user = dbUsers.first()
 
-        if (dbUsers.next()) {
-            return User(dbUsers.getString("username"), dbUsers.getString("password"))
-        } else {
-            throw TokenNotFoundException(token)
+                User(
+                        user.get(DbUsers.username),
+                        user.get(DbUsers.password).toString()
+                );
+            } catch (exception: NoSuchElementException) {
+                throw TokenNotFoundException(token)
+            }
         }
     }
 }
