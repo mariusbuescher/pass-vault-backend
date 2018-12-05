@@ -1,6 +1,5 @@
 package repository
 
-import com.muquit.libsodiumjna.SodiumLibrary.cryptoPwhashStr
 import com.muquit.libsodiumjna.SodiumLibrary.randomBytes
 import com.muquit.libsodiumjna.SodiumUtils
 import db.Users as DbUsers
@@ -14,25 +13,25 @@ import org.jetbrains.exposed.sql.insert
 import org.jetbrains.exposed.sql.select
 import org.jetbrains.exposed.sql.transactions.transaction
 import org.joda.time.DateTime
+import security.PasswordHasher
 import java.nio.charset.StandardCharsets
 import java.util.*
-import javax.sql.DataSource
 import kotlin.NoSuchElementException
 
 class PostgresUserRepository(
         private val dbUserTable: DbUsers,
         private val dbTokenTable: DbToken,
+        private val passwordHasher: PasswordHasher,
         private val tokenTTL: Int,
-        private val tokenByteSize: Int,
-        private val secret: String
+        private val tokenByteSize: Int
 ): UserRepository {
     override fun registerUser(username: String, plaintextPassword: String) {
-        val hashedPassword = cryptoPwhashStr("${secret}.$plaintextPassword".toByteArray())
+        val hashedPassword = passwordHasher.hashPassword(plaintextPassword)
 
         transaction {
             dbUserTable.insert {
                 it[this.username] = username
-                it[this.password] = hashedPassword.toByteArray(StandardCharsets.US_ASCII)
+                it[this.password] = hashedPassword
             }
         }
     }

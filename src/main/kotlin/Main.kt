@@ -22,6 +22,7 @@ import io.ktor.request.receive
 import org.jetbrains.exposed.sql.Database
 import org.postgresql.ds.PGSimpleDataSource
 import repository.PostgresUserRepository
+import security.SodiumPasswordHasher
 import validation.UserDtoValidator
 import validation.exception.InvalidUserException
 import java.sql.DriverManager
@@ -44,12 +45,14 @@ fun main(args: Array<String>) {
 
     Database.connect(dataSource)
 
+    val passwordHasher = SodiumPasswordHasher(secret)
+
     val userRepository = PostgresUserRepository(
             dbUserTable = Users,
             dbTokenTable = Token,
+            passwordHasher = passwordHasher,
             tokenByteSize = dotenv.get("APP_AUTH_TOKEN_SIZE")?.toInt() ?: 256,
-            tokenTTL = dotenv.get("APP_AUTH_TOKEN_TTL")?.toInt() ?: 14,
-            secret = secret
+            tokenTTL = dotenv.get("APP_AUTH_TOKEN_TTL")?.toInt() ?: 14
     )
 
     val server = embeddedServer(Netty, port = dotenv.get("APP_HTTP_PORT")?.toInt() ?: 8080) {
@@ -61,7 +64,7 @@ fun main(args: Array<String>) {
             register(JsonUserAuthenticationProvider(
                     "jsonUser",
                     userRepository,
-                    secret
+                    passwordHasher
             ))
 
             register(TokenUserAuthenticationProvider(
@@ -106,7 +109,8 @@ fun main(args: Array<String>) {
 
             authenticate("tokenUser") {
                 get("/test") {
-                    call.respond("It worked!")
+                    val userPrincipal = context.principal<UserPrincipal>()
+                    call.respond("It worked! Username is ${userPrincipal?.username}")
                 }
             }
         }

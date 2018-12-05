@@ -16,20 +16,11 @@ import kotlin.test.assertFailsWith
 import org.jetbrains.exposed.sql.transactions.TransactionManager
 import org.sqlite.SQLiteDataSource
 import org.sqlite.SQLiteException
+import security.PasswordHasher
 import java.sql.Connection
 
 object PostgresUserRepositorySpek: Spek({
     describe("PostgresUserRepository") {
-        val dotenv = Dotenv.configure()
-                .directory("./")
-                .ignoreIfMalformed()
-                .ignoreIfMissing()
-                .load()
-
-        SodiumLibrary.setLibraryPath(dotenv.get("SODIUM_LIBRARY_PATH") ?: "/usr/lib/libsodium.so")
-
-        val secret = "1234IsNotReallyASecret"
-
         var counter = 0
 
         val dataSource by memoized {
@@ -54,7 +45,14 @@ object PostgresUserRepositorySpek: Spek({
             Database.connect(dataSource)
             TransactionManager.manager.defaultIsolationLevel = Connection.TRANSACTION_SERIALIZABLE
 
-            PostgresUserRepository(Users, Token, 7, 32, secret)
+            class NullPasswordHasher: PasswordHasher {
+                override fun hashPassword(plaintextPassword: String): ByteArray = plaintextPassword.toByteArray()
+                override fun verifyPassword(plaintextPassword: String, hashedPassword: String): Boolean = true
+            }
+
+            val passwordHasher = NullPasswordHasher()
+
+            PostgresUserRepository(Users, Token, passwordHasher, 7, 32)
         }
 
         it("registers a user and gets it by its username") {
