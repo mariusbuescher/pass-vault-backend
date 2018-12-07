@@ -2,15 +2,13 @@ package repository
 
 import com.muquit.libsodiumjna.SodiumLibrary.randomBytes
 import com.muquit.libsodiumjna.SodiumUtils
-import db.Users as DbUsers
 import db.Token as DbToken
+import db.Users as DbUsers
 import exception.TokenNotFoundException
 import exception.UserNotFoundException
 import model.Token
 import model.User
-import org.jetbrains.exposed.sql.and
-import org.jetbrains.exposed.sql.insert
-import org.jetbrains.exposed.sql.select
+import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.transactions.transaction
 import org.joda.time.DateTime
 import security.PasswordHasher
@@ -36,18 +34,19 @@ class PostgresUserRepository(
         }
     }
 
+    private fun mapUserFromDb(row: ResultRow): User = User(
+            username = row.get(dbUserTable.username),
+            hashedPassword = row.get(dbUserTable.password).toString(StandardCharsets.US_ASCII)
+    )
+
     override fun getUserByUsername(username: String): User {
         return transaction {
             val dbUsers = dbUserTable.select {
                 dbUserTable.username eq username
-            }
+            }.limit(1).map { mapUserFromDb(it) }
 
             try {
-                val user = dbUsers.first()
-                User(
-                        user.get(dbUserTable.username),
-                        user.get(dbUserTable.password).toString(StandardCharsets.US_ASCII)
-                )
+                dbUsers.first()
             } catch(exception: NoSuchElementException) {
                 throw UserNotFoundException(username)
             }
@@ -55,8 +54,6 @@ class PostgresUserRepository(
     }
 
     override fun issueTokenForUser(username: String): Token {
-        val user = getUserByUsername(username)
-
         val cal = Calendar.getInstance()
 
         val issuedAt = cal.time
@@ -66,18 +63,26 @@ class PostgresUserRepository(
         val validUntil = cal.time
 
         val token = Token(
-                username = user.username,
+                username = username,
                 token = SodiumUtils.binary2Hex(randomBytes(tokenByteSize)),
                 issuedAt = issuedAt,
                 validUntil = validUntil
         )
 
         transaction {
+            val dbUserCount = dbUserTable.select {
+                dbUserTable.username eq token.username
+            }.count()
+
+            if (dbUserCount == 0) {
+                throw UserNotFoundException(token.username)
+            }
+
             dbTokenTable.insert {
                 it[this.tokenValue] = token.token
                 it[this.issueDate] = DateTime(token.issuedAt)
                 it[this.validUntil] = DateTime(token.validUntil)
-                it[this.user] = user.username
+                it[this.user] = token.username
             }
         }
 
@@ -88,15 +93,10 @@ class PostgresUserRepository(
         return transaction {
             val dbUsers = dbUserTable.innerJoin(dbTokenTable).select {
                 dbTokenTable.tokenValue eq token and (dbTokenTable.validUntil greaterEq DateTime.now())
-            }
+            }.map { mapUserFromDb(it) }
 
             try {
-                val user = dbUsers.first()
-
-                User(
-                        user.get(dbUserTable.username),
-                        user.get(dbUserTable.password).toString()
-                );
+                dbUsers.first()
             } catch (exception: NoSuchElementException) {
                 throw TokenNotFoundException(token)
             }
