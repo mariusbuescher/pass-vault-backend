@@ -2,6 +2,7 @@ import authentication.JsonUserAuthenticationProvider
 import authentication.TokenUserAuthenticationProvider
 import authentication.UserPrincipal
 import com.muquit.libsodiumjna.SodiumLibrary
+import db.PublicKeys
 import db.Token
 import db.Users
 import dto.TokenDto
@@ -50,6 +51,7 @@ fun main(args: Array<String>) {
     val userRepository = PostgresUserRepository(
             dbUserTable = Users,
             dbTokenTable = Token,
+            dbPublicKeyTable = PublicKeys,
             passwordHasher = passwordHasher,
             tokenByteSize = dotenv.get("APP_AUTH_TOKEN_SIZE")?.toInt() ?: 256,
             tokenTTL = dotenv.get("APP_AUTH_TOKEN_TTL")?.toInt() ?: 14

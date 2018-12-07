@@ -1,7 +1,9 @@
 package repository
 
+import db.PublicKeys
 import db.Token
 import db.Users
+import exception.PublicKeyNotFoundException
 import exception.TokenNotFoundException
 import exception.UserNotFoundException
 import org.apache.commons.io.IOUtils
@@ -13,9 +15,9 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import org.jetbrains.exposed.sql.transactions.TransactionManager
 import org.sqlite.SQLiteDataSource
-import org.sqlite.SQLiteException
 import security.PasswordHasher
 import java.sql.Connection
+import java.util.*
 
 object PostgresUserRepositorySpek: Spek({
     describe("PostgresUserRepository") {
@@ -50,7 +52,14 @@ object PostgresUserRepositorySpek: Spek({
 
             val passwordHasher = NullPasswordHasher()
 
-            PostgresUserRepository(Users, Token, passwordHasher, 7, 32)
+            PostgresUserRepository(
+                    dbUserTable = Users,
+                    dbTokenTable = Token,
+                    dbPublicKeyTable = PublicKeys,
+                    passwordHasher = passwordHasher,
+                    tokenTTL = 7,
+                    tokenByteSize = 32
+            )
         }
 
         describe("#registerUser()") {
@@ -94,6 +103,132 @@ object PostgresUserRepositorySpek: Spek({
 
                 assertFailsWith(TokenNotFoundException::class, "Token 1234 not found") {
                     userRepository.getUserForToken("1234")
+                }
+            }
+        }
+
+        describe("#addPublicKey") {
+            it("throws an error when no user is found for the new key") {
+                assertFailsWith<UserNotFoundException>("User with username test not found") {
+                    userRepository.addPublicKey("1234", "test")
+                }
+            }
+
+            it("adds a public key for a user") {
+                userRepository.registerUser("test", "1234")
+                val publicKey = userRepository.addPublicKey("1234", "test")
+
+                val retrievedPublicKey = userRepository.getPublicKey(publicKey.id, "test")
+
+                assertEquals("1234", retrievedPublicKey.keyString)
+            }
+        }
+
+        describe("#getPublicKey()") {
+            it("throws an error when the desired public key is not found by ID") {
+                userRepository.registerUser("test", "1234")
+                val id = UUID.randomUUID()
+
+                assertFailsWith<PublicKeyNotFoundException>("Public key with id ${id.toString()} not found") {
+                    userRepository.getPublicKey(id, "test")
+                }
+            }
+
+            it("throws an error when the desired public key is not found by key string") {
+                userRepository.registerUser("test", "1234")
+
+                assertFailsWith<PublicKeyNotFoundException>("Public key with id 1234 not found") {
+                    userRepository.getPublicKey("1234", "test")
+                }
+            }
+
+            it("throws an error when the desired public key is not found with the user") {
+                userRepository.registerUser("test", "1234")
+                userRepository.addPublicKey("1234", "test")
+
+                assertFailsWith<PublicKeyNotFoundException>("Public key with id 1234 not found") {
+                    userRepository.getPublicKey("1234", "foo")
+                }
+            }
+        }
+
+        describe("#getPublicKeys()") {
+            it("returns all public keys for a given user") {
+                userRepository.registerUser("test", "1234")
+                userRepository.addPublicKey("Key1", "test")
+                userRepository.addPublicKey("Key2", "test")
+
+                val keys = userRepository.getPublicKeys("test")
+
+                assertEquals(2, keys.count())
+                assertEquals("Key1", keys.get(0).keyString)
+                assertEquals("Key2", keys.get(1).keyString)
+            }
+
+            it("returns an empty list when user does not exist") {
+                val keys = userRepository.getPublicKeys("test")
+
+                assertEquals(0, keys.count())
+            }
+        }
+
+        describe("#revokePublicKey()") {
+            it("removes a public key with a given ID") {
+                userRepository.registerUser("test", "1234")
+                val publicKey = userRepository.addPublicKey("1234", "test")
+
+                userRepository.revokePublicKey(publicKey.id, "test")
+
+                val allPublicKeys = userRepository.getPublicKeys("test")
+
+                assertEquals(0, allPublicKeys.count())
+            }
+
+            it("removes a public key with a given key string") {
+                userRepository.registerUser("test", "1234")
+                userRepository.addPublicKey("1234", "test")
+
+                userRepository.revokePublicKey("1234", "test")
+
+                val allPublicKeys = userRepository.getPublicKeys("test")
+
+                assertEquals(0, allPublicKeys.count())
+            }
+
+            it("throws an error when no public key is found for a id") {
+                userRepository.registerUser("test", "1234")
+                val id = UUID.randomUUID()
+
+                assertFailsWith<PublicKeyNotFoundException>("Public key with id ${id} not found") {
+                    userRepository.revokePublicKey(id, "test")
+                }
+            }
+
+            it("throws an error when no public key is found for a key string") {
+                userRepository.registerUser("test", "1234")
+
+                assertFailsWith<PublicKeyNotFoundException>("Public key with 1234 not found") {
+                    userRepository.revokePublicKey("1234", "test")
+                }
+            }
+
+            it("throws an exception when public key with id is not found for user") {
+                userRepository.registerUser("test", "1234")
+                userRepository.registerUser("test2", "1234")
+                val publicKey = userRepository.addPublicKey("1234", "test2")
+
+                assertFailsWith<PublicKeyNotFoundException>("Public key with id ${publicKey.id} not found") {
+                    userRepository.revokePublicKey(publicKey.id, "test")
+                }
+            }
+
+            it("throws an exception when public key is not found for user") {
+                userRepository.registerUser("test", "1234")
+                userRepository.registerUser("test2", "1234")
+                val publicKey = userRepository.addPublicKey("1234", "test2")
+
+                assertFailsWith<PublicKeyNotFoundException>("Public key 1234 not found") {
+                    userRepository.revokePublicKey("1234", "test")
                 }
             }
         }

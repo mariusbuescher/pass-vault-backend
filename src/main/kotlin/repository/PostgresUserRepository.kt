@@ -2,10 +2,13 @@ package repository
 
 import com.muquit.libsodiumjna.SodiumLibrary.randomBytes
 import com.muquit.libsodiumjna.SodiumUtils
+import db.PublicKeys as DbPublicKeys
 import db.Token as DbToken
 import db.Users as DbUsers
 import exception.TokenNotFoundException
 import exception.UserNotFoundException
+import exception.PublicKeyNotFoundException
+import model.PublicKey
 import model.Token
 import model.User
 import org.jetbrains.exposed.sql.*
@@ -19,6 +22,7 @@ import kotlin.NoSuchElementException
 class PostgresUserRepository(
         private val dbUserTable: DbUsers,
         private val dbTokenTable: DbToken,
+        private val dbPublicKeyTable: DbPublicKeys,
         private val passwordHasher: PasswordHasher,
         private val tokenTTL: Int,
         private val tokenByteSize: Int
@@ -99,6 +103,101 @@ class PostgresUserRepository(
                 dbUsers.first()
             } catch (exception: NoSuchElementException) {
                 throw TokenNotFoundException(token)
+            }
+        }
+    }
+
+    private fun mapPublicKeyFromDb(row: ResultRow): PublicKey = PublicKey(
+            id = row.get(dbPublicKeyTable.id),
+            addedAt = row.get(dbPublicKeyTable.addedAt).toDate(),
+            keyString = row.get(dbPublicKeyTable.publicKey)
+    )
+
+    override fun getPublicKeys(username: String): List<PublicKey> =
+            transaction {
+                dbPublicKeyTable.select {
+                    dbPublicKeyTable.user eq username
+                }.map { mapPublicKeyFromDb(it) }
+            }
+
+    override fun addPublicKey(publicKeyStr: String, username: String): PublicKey {
+        val publicKey = PublicKey(
+                id = UUID.randomUUID(),
+                keyString = publicKeyStr,
+                addedAt = DateTime.now().toDate()
+        )
+
+        transaction {
+            val dbUserCount = dbUserTable.select {
+                dbUserTable.username eq username
+            }.count()
+
+            if (dbUserCount == 0) {
+                throw UserNotFoundException(username)
+            }
+
+            dbPublicKeyTable.insert {
+                it[this.id] = publicKey.id
+                it[this.publicKey] = publicKey.keyString
+                it[this.addedAt] = DateTime(publicKey.addedAt)
+                it[this.user] = username
+            }
+        }
+
+        return publicKey
+    }
+
+    override fun getPublicKey(publicKeyStr: String, username: String): PublicKey {
+        return transaction {
+            val dbPublicKeys = dbPublicKeyTable.select {
+                dbPublicKeyTable.publicKey eq publicKeyStr and
+                        (dbPublicKeyTable.user eq username)
+            }.limit(1).map { mapPublicKeyFromDb(it) }
+
+            try {  dbPublicKeys.first()
+            } catch (exception: NoSuchElementException) {
+                throw PublicKeyNotFoundException(publicKeyStr)
+            }
+        }
+    }
+
+    override fun getPublicKey(id: UUID, username: String): PublicKey {
+        return transaction {
+            val dbPublicKeys = dbPublicKeyTable.select {
+                dbPublicKeyTable.id eq id and
+                        (dbPublicKeyTable.user eq username)
+            }.limit(1).map { mapPublicKeyFromDb(it) }
+
+            try {
+               dbPublicKeys.first()
+            } catch (exception: NoSuchElementException) {
+                throw PublicKeyNotFoundException(id)
+            }
+        }
+    }
+
+    override fun revokePublicKey(publicKeyStr: String, username: String) {
+        transaction {
+            val deletedKey = dbPublicKeyTable.deleteWhere {
+                dbPublicKeyTable.publicKey eq publicKeyStr and
+                        (dbPublicKeyTable.user eq username)
+            }
+
+            if (deletedKey == 0) {
+                throw PublicKeyNotFoundException(publicKeyStr)
+            }
+        }
+    }
+
+    override fun revokePublicKey(id: UUID, username: String) {
+        transaction {
+            val deletedKey = dbPublicKeyTable.deleteWhere {
+                dbPublicKeyTable.id eq id and
+                        (dbPublicKeyTable.user eq username)
+            }
+
+            if (deletedKey == 0) {
+                throw PublicKeyNotFoundException(id)
             }
         }
     }
