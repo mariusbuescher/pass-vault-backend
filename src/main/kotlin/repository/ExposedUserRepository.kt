@@ -27,6 +27,22 @@ class ExposedUserRepository(
         private val tokenTTL: Int,
         private val tokenByteSize: Int
 ): UserRepository {
+
+    private val mapUserFromDb = { row: ResultRow ->
+            User(
+                    username = row.get(dbUserTable.username),
+                    hashedPassword = row.get(dbUserTable.password).toString(StandardCharsets.US_ASCII)
+            )
+        }
+
+    private val mapPublicKeyFromDb = { row: ResultRow ->
+        PublicKey(
+                id = row.get(dbPublicKeyTable.id),
+                addedAt = row.get(dbPublicKeyTable.addedAt).toDate(),
+                keyString = row.get(dbPublicKeyTable.publicKey)
+        )
+    }
+
     override fun registerUser(username: String, plaintextPassword: String) {
         val hashedPassword = passwordHasher.hashPassword(plaintextPassword)
 
@@ -38,16 +54,11 @@ class ExposedUserRepository(
         }
     }
 
-    private fun mapUserFromDb(row: ResultRow): User = User(
-            username = row.get(dbUserTable.username),
-            hashedPassword = row.get(dbUserTable.password).toString(StandardCharsets.US_ASCII)
-    )
-
     override fun getUserByUsername(username: String): User {
         return transaction {
             val dbUsers = dbUserTable.select {
                 dbUserTable.username eq username
-            }.limit(1).map { mapUserFromDb(it) }
+            }.limit(1).map(mapUserFromDb)
 
             try {
                 dbUsers.first()
@@ -97,7 +108,7 @@ class ExposedUserRepository(
         return transaction {
             val dbUsers = dbUserTable.innerJoin(dbTokenTable).select {
                 dbTokenTable.tokenValue eq token and (dbTokenTable.validUntil greaterEq DateTime.now())
-            }.map { mapUserFromDb(it) }
+            }.map(mapUserFromDb)
 
             try {
                 dbUsers.first()
@@ -106,12 +117,6 @@ class ExposedUserRepository(
             }
         }
     }
-
-    private fun mapPublicKeyFromDb(row: ResultRow): PublicKey = PublicKey(
-            id = row.get(dbPublicKeyTable.id),
-            addedAt = row.get(dbPublicKeyTable.addedAt).toDate(),
-            keyString = row.get(dbPublicKeyTable.publicKey)
-    )
 
     override fun getPublicKeys(username: String): List<PublicKey> =
             transaction {
@@ -152,7 +157,7 @@ class ExposedUserRepository(
             val dbPublicKeys = dbPublicKeyTable.select {
                 dbPublicKeyTable.publicKey eq publicKeyStr and
                         (dbPublicKeyTable.user eq username)
-            }.limit(1).map { mapPublicKeyFromDb(it) }
+            }.limit(1).map(mapPublicKeyFromDb)
 
             try {  dbPublicKeys.first()
             } catch (exception: NoSuchElementException) {
@@ -166,7 +171,7 @@ class ExposedUserRepository(
             val dbPublicKeys = dbPublicKeyTable.select {
                 dbPublicKeyTable.id eq id and
                         (dbPublicKeyTable.user eq username)
-            }.limit(1).map { mapPublicKeyFromDb(it) }
+            }.limit(1).map(mapPublicKeyFromDb)
 
             try {
                dbPublicKeys.first()
