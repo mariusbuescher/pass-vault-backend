@@ -5,9 +5,11 @@ import com.muquit.libsodiumjna.SodiumLibrary
 import db.PublicKeys
 import db.Token
 import db.Users
+import dto.PublicKey
 import dto.TokenDto
 import dto.UserDto
 import dto.ValidationErrorExceptionDto
+import exception.PublicKeyNotFoundException
 import io.github.cdimascio.dotenv.Dotenv
 import io.ktor.application.*
 import io.ktor.auth.*
@@ -23,8 +25,11 @@ import org.jetbrains.exposed.sql.Database
 import org.postgresql.ds.PGSimpleDataSource
 import repository.ExposedUserRepository
 import security.SodiumPasswordHasher
+import validation.PublicKeyDtoValidator
 import validation.UserDtoValidator
+import validation.exception.InvalidPublicKeyException
 import validation.exception.InvalidUserException
+import java.util.*
 
 fun main(args: Array<String>) {
     val dotenv = Dotenv.configure()
@@ -107,9 +112,76 @@ fun main(args: Array<String>) {
             }
 
             authenticate("tokenUser") {
-                get("/test") {
-                    val userPrincipal = context.principal<UserPrincipal>()
-                    call.respond("It worked! Username is ${userPrincipal?.username}")
+                post("/public-key") {
+                    val user = context.principal<UserPrincipal>()!!
+
+                    val publicKeyValidator = PublicKeyDtoValidator()
+
+                    val key = call.receive<PublicKey>()
+
+                    try {
+                        publicKeyValidator.validate(key)
+
+                        val publicKey = userRepository.addPublicKey(
+                                publicKeyStr = key.key!!,
+                                username = user.username
+                        )
+
+                        call.respond(HttpStatusCode.Created, PublicKey(
+                                id = publicKey.id,
+                                addedAt = publicKey.addedAt,
+                                key = publicKey.keyString
+                        ))
+                    } catch (exception: InvalidPublicKeyException) {
+                        call.respond(HttpStatusCode.BadRequest, ValidationErrorExceptionDto(
+                                message = exception.message!!,
+                                property = exception.fieldName
+                        ))
+                    } catch (exception: Exception) {
+                        call.respond(HttpStatusCode.InternalServerError)
+                    }
+                }
+
+                get("/public-key") {
+                    val user = context.principal<UserPrincipal>()!!
+
+                    call.respond(HttpStatusCode.OK, userRepository.getPublicKeys(username = user.username).map {
+                        PublicKey(
+                                id = it.id,
+                                addedAt = it.addedAt,
+                                key = it.keyString
+                        )
+                    })
+                }
+
+                get("/public-key/{id}") {
+                    val user = context.principal<UserPrincipal>()!!
+
+                    val id = UUID.fromString(call.parameters["id"])
+                    try {
+                        val publicKey = userRepository.getPublicKey(id = id, username = user.username)
+
+                        call.respond(HttpStatusCode.OK, PublicKey(
+                                id = publicKey.id,
+                                addedAt = publicKey.addedAt,
+                                key = publicKey.keyString
+                        ))
+                    } catch (exception: PublicKeyNotFoundException) {
+                        call.respond(HttpStatusCode.NotFound)
+                    }
+                }
+
+                delete("/public-key/{id}") {
+                    val user = context.principal<UserPrincipal>()!!
+
+                    val id = UUID.fromString(call.parameters["id"])
+
+                    try {
+                        userRepository.revokePublicKey(id = id, username = user.username)
+                    } catch (exception: PublicKeyNotFoundException) {
+                        call.respond(HttpStatusCode.NotFound)
+                    }
+
                 }
             }
         }
