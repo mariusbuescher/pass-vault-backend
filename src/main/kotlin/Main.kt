@@ -22,7 +22,7 @@ import io.ktor.jackson.jackson
 import io.ktor.request.receive
 import org.jetbrains.exposed.sql.Database
 import org.postgresql.ds.PGSimpleDataSource
-import repository.PostgresUserRepository
+import repository.ExposedUserRepository
 import security.SodiumPasswordHasher
 import validation.UserDtoValidator
 import validation.exception.InvalidUserException
@@ -48,7 +48,7 @@ fun main(args: Array<String>) {
 
     val passwordHasher = SodiumPasswordHasher(secret)
 
-    val userRepository = PostgresUserRepository(
+    val userRepository = ExposedUserRepository(
             dbUserTable = Users,
             dbTokenTable = Token,
             dbPublicKeyTable = PublicKeys,

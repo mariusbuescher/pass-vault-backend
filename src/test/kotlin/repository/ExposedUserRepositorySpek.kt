@@ -19,8 +19,8 @@ import security.PasswordHasher
 import java.sql.Connection
 import java.util.*
 
-object PostgresUserRepositorySpek: Spek({
-    describe("PostgresUserRepository") {
+object ExposedUserRepositorySpek: Spek({
+    describe("ExposedUserRepository") {
         var counter = 0
 
         val dataSource by memoized {
@@ -52,7 +52,7 @@ object PostgresUserRepositorySpek: Spek({
 
             val passwordHasher = NullPasswordHasher()
 
-            PostgresUserRepository(
+            ExposedUserRepository(
                     dbUserTable = Users,
                     dbTokenTable = Token,
                     dbPublicKeyTable = PublicKeys,

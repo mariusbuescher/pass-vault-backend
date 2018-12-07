@@ -19,7 +19,7 @@ import java.nio.charset.StandardCharsets
 import java.util.*
 import kotlin.NoSuchElementException
 
-class PostgresUserRepository(
+class ExposedUserRepository(
         private val dbUserTable: DbUsers,
         private val dbTokenTable: DbToken,
         private val dbPublicKeyTable: DbPublicKeys,
