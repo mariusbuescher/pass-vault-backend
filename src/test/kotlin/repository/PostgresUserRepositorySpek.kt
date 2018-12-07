@@ -1,11 +1,9 @@
 package repository
 
-import com.muquit.libsodiumjna.SodiumLibrary
 import db.Token
 import db.Users
 import exception.TokenNotFoundException
 import exception.UserNotFoundException
-import io.github.cdimascio.dotenv.Dotenv
 import org.apache.commons.io.IOUtils
 import org.jetbrains.exposed.sql.Database
 import org.spekframework.spek2.Spek
@@ -55,36 +53,48 @@ object PostgresUserRepositorySpek: Spek({
             PostgresUserRepository(Users, Token, passwordHasher, 7, 32)
         }
 
-        it("registers a user and gets it by its username") {
-            userRepository.registerUser("test", "1234")
+        describe("#registerUser()") {
+            it("registers a user and gets it by its username") {
+                userRepository.registerUser("test", "1234")
 
-            val user = userRepository.getUserByUsername("test")
+                val user = userRepository.getUserByUsername("test")
 
-            assertEquals("test", user.username)
-        }
+                assertEquals("test", user.username)
+            }
 
-        it("throws an error when no user is found") {
-            assertFailsWith(UserNotFoundException::class, "User with username test not found") {
-                userRepository.getUserByUsername("test")
+            it("throws an error when no user is found") {
+                assertFailsWith(UserNotFoundException::class, "User with username test not found") {
+                    userRepository.getUserByUsername("test")
+                }
             }
         }
 
-        it("issues a token for a user and gets the user by this token") {
-            userRepository.registerUser("test", "1234")
+        describe("#issueToken()") {
+            it("issues a token for a user and gets the user by this token") {
+                userRepository.registerUser("test", "1234")
 
-            val token = userRepository.issueTokenForUser("test");
-            val user = userRepository.getUserForToken(token.token)
+                val token = userRepository.issueTokenForUser("test");
+                val user = userRepository.getUserForToken(token.token)
 
-            assertEquals("test", user.username)
+                assertEquals("test", user.username)
+            }
+
+            it("thows an error when no user is found for the new token") {
+                assertFailsWith<UserNotFoundException>("User with username test not found") {
+                    userRepository.issueTokenForUser("test")
+                }
+            }
         }
 
-        it("throws an exception if no valid token was found") {
-            userRepository.registerUser("test", "1234")
+        describe("#getUserForToken()") {
+            it("throws an exception if no valid token was found") {
+                userRepository.registerUser("test", "1234")
 
-            userRepository.issueTokenForUser("test")
+                userRepository.issueTokenForUser("test")
 
-            assertFailsWith(TokenNotFoundException::class, "Token 1234 not found") {
-                userRepository.getUserForToken("1234")
+                assertFailsWith(TokenNotFoundException::class, "Token 1234 not found") {
+                    userRepository.getUserForToken("1234")
+                }
             }
         }
     }
