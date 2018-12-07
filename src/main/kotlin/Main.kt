@@ -8,7 +8,6 @@ import db.Users
 import dto.TokenDto
 import dto.UserDto
 import dto.ValidationErrorExceptionDto
-import exception.UserNotFoundException
 import io.github.cdimascio.dotenv.Dotenv
 import io.ktor.application.*
 import io.ktor.auth.*
@@ -26,8 +25,6 @@ import repository.ExposedUserRepository
 import security.SodiumPasswordHasher
 import validation.UserDtoValidator
 import validation.exception.InvalidUserException
-import java.sql.DriverManager
-import javax.sql.DataSource
 
 fun main(args: Array<String>) {
     val dotenv = Dotenv.configure()
