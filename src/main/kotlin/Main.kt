@@ -52,9 +52,7 @@ fun main(args: Array<String>) {
     val passwordHasher = SodiumPasswordHasher(secret)
 
     val userRepository = ExposedUserRepository(
-            dbUserTable = Users,
-            dbTokenTable = Token,
-            dbPublicKeyTable = PublicKeys,
+            database = database,
             passwordHasher = passwordHasher,
             tokenByteSize = dotenv.get("APP_AUTH_TOKEN_SIZE")?.toInt() ?: 256,
             tokenTTL = dotenv.get("APP_AUTH_TOKEN_TTL")?.toInt() ?: 14
