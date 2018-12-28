@@ -2,9 +2,6 @@ import authentication.JsonUserAuthenticationProvider
 import authentication.TokenUserAuthenticationProvider
 import authentication.UserPrincipal
 import com.muquit.libsodiumjna.SodiumLibrary
-import db.PublicKeys
-import db.Token
-import db.Users
 import dto.PublicKey
 import dto.TokenDto
 import dto.UserDto
