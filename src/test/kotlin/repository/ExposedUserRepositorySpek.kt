@@ -14,6 +14,7 @@ import java.nio.charset.StandardCharsets
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import org.jetbrains.exposed.sql.transactions.TransactionManager
+import org.joda.time.DateTime
 import org.sqlite.SQLiteDataSource
 import security.PasswordHasher
 import java.sql.Connection
@@ -21,11 +22,10 @@ import java.util.*
 
 object ExposedUserRepositorySpek: Spek({
     describe("ExposedUserRepository") {
-        var counter = 0
 
         val dataSource by memoized {
             val dataSource = SQLiteDataSource()
-            dataSource.url = "jdbc:sqlite:file:test$counter?mode=memory&cache=shared"
+            dataSource.url = "jdbc:sqlite:file:userTest${DateTime.now().millis}?mode=memory&cache=shared"
             val con = dataSource.connection
 
             val dbPrepStream = this.javaClass.classLoader
@@ -35,8 +35,6 @@ object ExposedUserRepositorySpek: Spek({
             for (stmt in statements) {
                 con.createStatement().execute(stmt)
             }
-
-            counter++
 
             dataSource
         }
