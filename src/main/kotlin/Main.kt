@@ -23,6 +23,7 @@ import io.ktor.jackson.jackson
 import io.ktor.request.receive
 import org.jetbrains.exposed.sql.Database
 import org.postgresql.ds.PGSimpleDataSource
+import repository.ExposedPublicKeyRepository
 import repository.ExposedUserRepository
 import security.SodiumPasswordHasher
 import validation.PublicKeyDtoValidator
@@ -46,7 +47,7 @@ fun main(args: Array<String>) {
     val dataSource = PGSimpleDataSource()
     dataSource.setURL(dotenv.get("APP_DB_URL") ?: "jdbc:postgresql://localhost:5432/pass_vault?user=postgres")
 
-    Database.connect(dataSource)
+    val database = Database.connect(dataSource)
 
     val passwordHasher = SodiumPasswordHasher(secret)
 
@@ -57,6 +58,10 @@ fun main(args: Array<String>) {
             passwordHasher = passwordHasher,
             tokenByteSize = dotenv.get("APP_AUTH_TOKEN_SIZE")?.toInt() ?: 256,
             tokenTTL = dotenv.get("APP_AUTH_TOKEN_TTL")?.toInt() ?: 14
+    )
+
+    val publicKeyRepository = ExposedPublicKeyRepository(
+            database = database
     )
 
     val server = embeddedServer(Netty, port = dotenv.get("APP_HTTP_PORT")?.toInt() ?: 8080) {
@@ -122,7 +127,7 @@ fun main(args: Array<String>) {
                     try {
                         publicKeyValidator.validate(key)
 
-                        val publicKey = userRepository.addPublicKey(
+                        val publicKey = publicKeyRepository.addPublicKey(
                                 publicKeyStr = key.key!!,
                                 username = user.username
                         )
@@ -145,7 +150,7 @@ fun main(args: Array<String>) {
                 get("/public-key") {
                     val user = context.principal<UserPrincipal>()!!
 
-                    call.respond(HttpStatusCode.OK, userRepository.getPublicKeys(username = user.username).map {
+                    call.respond(HttpStatusCode.OK, publicKeyRepository.getPublicKeys(username = user.username).map {
                         PublicKey(
                                 id = it.id,
                                 addedAt = it.addedAt,
@@ -159,7 +164,7 @@ fun main(args: Array<String>) {
 
                     val id = UUID.fromString(call.parameters["id"])
                     try {
-                        val publicKey = userRepository.getPublicKey(id = id, username = user.username)
+                        val publicKey = publicKeyRepository.getPublicKey(id = id, username = user.username)
 
                         call.respond(HttpStatusCode.OK, PublicKey(
                                 id = publicKey.id,
@@ -177,7 +182,7 @@ fun main(args: Array<String>) {
                     val id = UUID.fromString(call.parameters["id"])
 
                     try {
-                        userRepository.revokePublicKey(id = id, username = user.username)
+                        publicKeyRepository.revokePublicKey(id = id, username = user.username)
                     } catch (exception: PublicKeyNotFoundException) {
                         call.respond(HttpStatusCode.NotFound)
                     }
