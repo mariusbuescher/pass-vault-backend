@@ -29,7 +29,7 @@ object ExposedUserRepositorySpek: Spek({
             val con = dataSource.connection
 
             val dbPrepStream = this.javaClass.classLoader
-                    .getResourceAsStream("db/migration/sqlite/UpPostgresUserRepositorySpek.sql")
+                    .getResourceAsStream("db/migration/sqlite/UpSqlite.sql")
             val dbPrep = IOUtils.toString(dbPrepStream, StandardCharsets.UTF_8)
             val statements = dbPrep.split("\n\n")
             for (stmt in statements) {
