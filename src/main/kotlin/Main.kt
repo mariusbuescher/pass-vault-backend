@@ -2,11 +2,10 @@ import authentication.JsonUserAuthenticationProvider
 import authentication.TokenUserAuthenticationProvider
 import authentication.UserPrincipal
 import com.muquit.libsodiumjna.SodiumLibrary
-import dto.PublicKey
-import dto.TokenDto
-import dto.UserDto
-import dto.ValidationErrorExceptionDto
+import dto.*
+import exception.PasswordNotFoundException
 import exception.PublicKeyNotFoundException
+import exception.UserNotFoundException
 import io.github.cdimascio.dotenv.Dotenv
 import io.ktor.application.*
 import io.ktor.auth.*
@@ -18,13 +17,17 @@ import io.ktor.server.netty.*
 import io.ktor.features.ContentNegotiation
 import io.ktor.jackson.jackson
 import io.ktor.request.receive
+import model.Password
 import org.jetbrains.exposed.sql.Database
 import org.postgresql.ds.PGSimpleDataSource
+import repository.ExposedPasswordRepository
 import repository.ExposedPublicKeyRepository
 import repository.ExposedUserRepository
 import security.SodiumPasswordHasher
+import validation.PasswordDtoValidator
 import validation.PublicKeyDtoValidator
 import validation.UserDtoValidator
+import validation.exception.InvalidPasswordException
 import validation.exception.InvalidPublicKeyException
 import validation.exception.InvalidUserException
 import java.util.*
@@ -56,6 +59,10 @@ fun main(args: Array<String>) {
     )
 
     val publicKeyRepository = ExposedPublicKeyRepository(
+            database = database
+    )
+
+    val passwordRepository = ExposedPasswordRepository(
             database = database
     )
 
@@ -182,6 +189,94 @@ fun main(args: Array<String>) {
                             publicKeyRepository.revokePublicKey(id = id, username = user.username)
                         } catch (exception: PublicKeyNotFoundException) {
                             call.respond(HttpStatusCode.NotFound)
+                        }
+                    }
+
+                }
+
+                route("/password") {
+                    post {
+                        val user = context.principal<UserPrincipal>()!!
+
+                        val passwordValidator = PasswordDtoValidator()
+
+                        val passwordDto = call.receive<PasswordDto>()
+
+                        try {
+                            passwordValidator.validate(passwordDto)
+
+                            val password = passwordRepository.createPassword(
+                                    username = user.username,
+                                    name = passwordDto.name!!,
+                                    domain = passwordDto.domain!!,
+                                    account = passwordDto.account!!
+                            )
+
+                            call.respond(HttpStatusCode.Created, PasswordDto(
+                                    id = password.id,
+                                    name = password.name,
+                                    domain = password.domain,
+                                    account = password.account
+                            ))
+                        } catch (exception: InvalidPasswordException) {
+                            call.respond(HttpStatusCode.BadRequest, ValidationErrorExceptionDto(
+                                    message = exception.message!!,
+                                    property = exception.fieldName
+                            ))
+                        } catch (exception: UserNotFoundException) {
+                            call.respond(HttpStatusCode.Forbidden)
+                        }
+                    }
+
+                    get {
+                        val user = context.principal<UserPrincipal>()!!
+
+                        try {
+                            val passwords = passwordRepository.getPasswordsForUser(user.username)
+
+                            call.respond(HttpStatusCode.OK, passwords.map { password: Password ->
+                                PasswordDto(
+                                        id = password.id,
+                                        name = password.name,
+                                        domain = password.domain,
+                                        account = password.account
+                                )
+                            })
+                        } catch (exception: UserNotFoundException) {
+                            call.respond(HttpStatusCode.Forbidden)
+                        }
+                    }
+
+                    get("/{id}") {
+                        val user = context.principal<UserPrincipal>()!!
+                        val id = UUID.fromString(call.parameters["id"])
+
+                        try {
+                            val password = passwordRepository.getPassword(username = user.username, id = id)
+
+                            call.respond(HttpStatusCode.OK, PasswordDto(
+                                    id = password.id,
+                                    name = password.name,
+                                    domain = password.domain,
+                                    account = password.account
+                            ))
+                        } catch (exception: UserNotFoundException) {
+                            call.respond(HttpStatusCode.Forbidden)
+                        } catch (exception: PasswordNotFoundException) {
+                            call.respond(HttpStatusCode.NotFound)
+                        }
+                    }
+
+                    delete("/{id}") {
+                        val user = context.principal<UserPrincipal>()!!
+                        val id = UUID.fromString(call.parameters["id"])
+
+                        try {
+                            passwordRepository.deletePassword(username = user.username, id = id)
+
+                            call.respond(HttpStatusCode.OK)
+                        } catch (exception: UserNotFoundException) {
+                            call.respond(HttpStatusCode.Forbidden)
                         }
                     }
                 }
