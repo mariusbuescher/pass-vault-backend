@@ -1,5 +1,5 @@
 plugins {
-    id 'org.jetbrains.kotlin.jvm' version '1.3.0'
+    id 'org.jetbrains.kotlin.jvm' version '1.3.10'
 }
 
 group 'PassVault'
@@ -22,7 +22,7 @@ kotlin { experimental { coroutines "enable" } }
 mainClassName = 'MainKt'
 
 dependencies {
-    compile "org.jetbrains.kotlin:kotlin-stdlib-jdk8"
+    compile "org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.3.10"
     compile "io.ktor:ktor-server-netty:1.0.1"
     compile "io.ktor:ktor-jackson:1.0.1"
     compile "io.ktor:ktor-auth:1.0.1"
@@ -34,13 +34,13 @@ dependencies {
 
     testCompile "commons-io:commons-io:2.6"
 
-    testImplementation "org.jetbrains.kotlin:kotlin-test:1.3.0"
+    testImplementation "org.jetbrains.kotlin:kotlin-test:1.3.10"
     testImplementation "org.spekframework.spek2:spek-dsl-jvm:2.0.0-rc.1"
     testRuntimeOnly "org.spekframework.spek2:spek-runner-junit5:2.0.0-rc.1"
     testCompile "org.xerial:sqlite-jdbc:3.25.2"
 
     // spek requires kotlin-reflect, can be omitted if already in the classpath
-    testRuntimeOnly "org.jetbrains.kotlin:kotlin-reflect:1.3.0"
+    testRuntimeOnly "org.jetbrains.kotlin:kotlin-reflect:1.3.10"
 }
 
 compileKotlin {
