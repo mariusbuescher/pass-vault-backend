@@ -1,7 +1,5 @@
 package repository
 
-import db.Token
-import db.Users
 import exception.TokenNotFoundException
 import exception.UserNotFoundException
 import org.apache.commons.io.IOUtils
@@ -15,6 +13,7 @@ import org.jetbrains.exposed.sql.transactions.TransactionManager
 import org.joda.time.DateTime
 import org.sqlite.SQLiteDataSource
 import security.PasswordHasher
+import security.TokenFactory
 import java.sql.Connection
 
 object ExposedUserRepositorySpek: Spek({
@@ -45,13 +44,18 @@ object ExposedUserRepositorySpek: Spek({
                 override fun verifyPassword(plaintextPassword: String, hashedPassword: String): Boolean = true
             }
 
+            class StaticTokenFactory: TokenFactory {
+                override fun generateRandomToken(): String = "12a4ff5f"
+            }
+
             val passwordHasher = NullPasswordHasher()
+            val tokenFactory = StaticTokenFactory()
 
             ExposedUserRepository(
                     database = database,
                     passwordHasher = passwordHasher,
                     tokenTTL = 7,
-                    tokenByteSize = 32
+                    tokenFactory = tokenFactory
             )
         }
 

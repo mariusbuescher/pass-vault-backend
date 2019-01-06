@@ -1,7 +1,5 @@
 package repository
 
-import com.muquit.libsodiumjna.SodiumLibrary.randomBytes
-import com.muquit.libsodiumjna.SodiumUtils
 import db.PublicKeys as DbPublicKeys
 import db.Token as DbToken
 import db.Users as DbUsers
@@ -13,6 +11,7 @@ import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.transactions.transaction
 import org.joda.time.DateTime
 import security.PasswordHasher
+import security.TokenFactory
 import java.nio.charset.StandardCharsets
 import java.util.*
 import kotlin.NoSuchElementException
@@ -21,7 +20,7 @@ class ExposedUserRepository(
         private val database: Database,
         private val passwordHasher: PasswordHasher,
         private val tokenTTL: Int,
-        private val tokenByteSize: Int
+        private val tokenFactory: TokenFactory
 ): UserRepository {
 
     private val mapUserFromDb = { row: ResultRow ->
@@ -67,7 +66,7 @@ class ExposedUserRepository(
 
         val token = Token(
                 username = username,
-                token = SodiumUtils.binary2Hex(randomBytes(tokenByteSize)),
+                token = tokenFactory.generateRandomToken(),
                 issuedAt = issuedAt,
                 validUntil = validUntil
         )

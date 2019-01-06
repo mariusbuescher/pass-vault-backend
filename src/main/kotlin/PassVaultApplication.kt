@@ -38,6 +38,7 @@ import validation.exception.InvalidPasswordException
 import validation.exception.InvalidPublicKeyException
 import validation.exception.InvalidUserException
 import java.util.*
+import security.SodiumTokenFactory
 
 fun Application.main() {
     val dotenv = Dotenv.configure()
@@ -57,11 +58,12 @@ fun Application.main() {
     val database = Database.connect(dataSource)
 
     val passwordHasher = SodiumPasswordHasher(secret)
+    val tokenFactory = SodiumTokenFactory(dotenv.get("APP_AUTH_TOKEN_SIZE")?.toInt() ?: 256)
 
     val userRepository = ExposedUserRepository(
             database = database,
             passwordHasher = passwordHasher,
-            tokenByteSize = dotenv.get("APP_AUTH_TOKEN_SIZE")?.toInt() ?: 256,
+            tokenFactory = tokenFactory,
             tokenTTL = dotenv.get("APP_AUTH_TOKEN_TTL")?.toInt() ?: 14
     )
 
