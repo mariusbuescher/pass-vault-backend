@@ -1,26 +1,14 @@
 import authentication.JsonUserAuthenticationProvider
 import authentication.TokenUserAuthenticationProvider
-import authentication.UserPrincipal
 import com.muquit.libsodiumjna.SodiumLibrary
-import dto.*
-import exception.PasswordNotFoundException
-import exception.PublicKeyNotFoundException
-import exception.UserNotFoundException
-import io.github.cdimascio.dotenv.Dotenv
 import io.ktor.application.Application
-import io.ktor.application.call
 import io.ktor.application.install
 import io.ktor.auth.Authentication
 import io.ktor.auth.authenticate
-import io.ktor.auth.authentication
-import io.ktor.auth.principal
 import io.ktor.features.ContentNegotiation
-import io.ktor.http.HttpStatusCode
 import io.ktor.jackson.jackson
-import io.ktor.request.receive
-import io.ktor.response.respond
 import io.ktor.routing.*
-import model.Password
+import io.ktor.util.KtorExperimentalAPI
 import org.jetbrains.exposed.sql.Database
 import org.postgresql.ds.PGSimpleDataSource
 import repository.ExposedPasswordRepository
@@ -31,40 +19,32 @@ import routing.password
 import routing.publicKey
 import routing.register
 import security.SodiumPasswordHasher
-import validation.PasswordDtoValidator
-import validation.PublicKeyDtoValidator
-import validation.UserDtoValidator
-import validation.exception.InvalidPasswordException
-import validation.exception.InvalidPublicKeyException
-import validation.exception.InvalidUserException
-import java.util.*
 import security.SodiumTokenFactory
 
+@UseExperimental(KtorExperimentalAPI::class)
 fun Application.main() {
-    val dotenv = Dotenv.configure()
-            .directory("./")
-            .ignoreIfMalformed()
-            .ignoreIfMissing()
-            .load()
+    val applicationConfig = environment.config.config("passVault")
 
-    SodiumLibrary.setLibraryPath(dotenv.get("SODIUM_LIBRARY_PATH") ?: "/usr/lib/libsodium.so")
+    SodiumLibrary.setLibraryPath(applicationConfig.property("sodium.libraryPath").getString())
     SodiumLibrary.libsodiumVersionString()
 
-    val secret = dotenv.get("APP_AUTH_SECRET") ?: ""
+    val secret = applicationConfig.property("auth.secret").getString()
 
     val dataSource = PGSimpleDataSource()
-    dataSource.setURL(dotenv.get("APP_DB_URL") ?: "jdbc:postgresql://localhost:5432/pass_vault?user=postgres")
+    dataSource.setURL(
+            applicationConfig.property("db.url").getString()
+    )
 
     val database = Database.connect(dataSource)
 
     val passwordHasher = SodiumPasswordHasher(secret)
-    val tokenFactory = SodiumTokenFactory(dotenv.get("APP_AUTH_TOKEN_SIZE")?.toInt() ?: 256)
+    val tokenFactory = SodiumTokenFactory(applicationConfig.property("auth.token.size").getString().toInt())
 
     val userRepository = ExposedUserRepository(
             database = database,
             passwordHasher = passwordHasher,
             tokenFactory = tokenFactory,
-            tokenTTL = dotenv.get("APP_AUTH_TOKEN_TTL")?.toInt() ?: 14
+            tokenTTL = applicationConfig.property("auth.token.ttl").getString().toInt()
     )
 
     val publicKeyRepository = ExposedPublicKeyRepository(

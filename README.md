@@ -17,6 +17,6 @@ at least in version 4.5 installed on your machine.
 
 ## Setup
 
-First make sure you run all the database migrations in your database. Then copy the `.env.dist`
-to `.env` and adjust the variables to your need. Then type `gradle run` in your terminal
-and the application should be up and running.
+First make sure you run all the database migrations in your database. After that be sure to
+set the `SODIUM_LIBRARY_PATH` environment variable to the right value. When finished with that
+you can run `gradle run` in your terminal.
